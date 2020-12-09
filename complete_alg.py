@@ -8,6 +8,7 @@ import pymap3d
 from scipy.spatial.transform import Rotation as R
 from rasterio.windows import Window
 from math import cos, sin, atan, atan2, asin, floor, ceil, sqrt
+import webbrowser
 
 def sigma_points(var_in):
 	n=len(var_in)
@@ -296,24 +297,32 @@ def image_reader(frame):
 
 def video_reader(src):
 	cap = cv2.VideoCapture(sys.argv[1])
-	count = 0
+	count = -1
+	el_prev = np.inf
+	az_prev = np.inf 
 	while cap.isOpened():
 		ret,frame = cap.read()
-		count = count+1
-		if ret and count % 25 == 0:
+		if ret:
 			data = image_reader(frame)
-			if np.isnan(data).any() or data[5] < 1:
+			if np.isnan(data).any() or data[5] < 0:
 				print('Invalid read or zoom')
 				continue
-			else:
+			elif data[0] == el_prev and data[1] == az_prev:
+				print('Outdated data')
+				continue
+			elif data[0] != el_prev and data[1] != az_prev:
 				georef(src,data)
+				el_prev = data[0]
+				az_prev = data[1]
+			else:
+				continue
 		elif not ret:
 			break
 
 	cap.release()
 
 def georef(src, data):
-	pixels = np.array([[319.5,239.5],[319.5,480],[1,480],[640,480]])
+	pixels = np.array([[319.5,239.5]])
 	origin = np.array([data[2], data[3], data[4]*0.3048])
 	max_height = max_height_finder(src,origin)
 
@@ -327,9 +336,10 @@ def georef(src, data):
 	print(x)
 	print('Incerteza [x y z](m):')
 	print(P_xyz)
+	#webbrowser.open('https://www.google.pt/maps/place/'+str(x[0,0])+',+'+str(x[0,1])+'/@'+str(x[0,0])+',+'+str(x[0,1])+',2000m/data=!3m1!1e3')
 
 def main():
-	src = rio.open('../../../dem_portugal/junto_wsg84.tif')
+	src = rio.open('../../Google Drive/dem_portugal/junto_wsg84.tif')
 	#src = rio.open('porto_de_mos_4326.tif')
 	video_reader(src)
 	'''
